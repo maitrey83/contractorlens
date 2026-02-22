@@ -29,7 +29,7 @@ has no idea if it's fair. Peak anxiety moment. High willingness to pay for clari
 | Styling | Inline styles + CSS-in-JS (no Tailwind, no CSS modules) |
 | Hosting | Vercel (frontend + serverless API functions) |
 | API | Vercel serverless functions (`/api/*.js`) |
-| AI | Google Gemini API — model: `gemini-2.0-flash` (free tier; switch to Anthropic `claude-sonnet-4-6` when paying customers arrive) |
+| AI | Google Gemini API — model: `gemini-2.5-flash` (free tier; switch to Anthropic `claude-sonnet-4-6` when paying customers arrive) |
 | Database | Supabase (Postgres) |
 | Auth | None for MVP — no login required |
 | Payments | Stripe (one-time checkout, no subscriptions) |
@@ -108,7 +108,7 @@ These are product decisions. Do not change them without explicit instruction.
 3. **No user accounts for MVP.** No login, no registration, no session management.
 4. **analysis_id is the session key.** Every analysis gets a UUID. This links the
    free result → Stripe payment → PDF download. Protect it, never expose others'.
-5. **AI model is `gemini-2.0-flash` (Google Gemini free tier).** Switch to `claude-sonnet-4-6` only when paying customers justify the cost. Do not change without explicit instruction.
+5. **AI model is `gemini-2.5-flash` (Google Gemini free tier).** Switch to `claude-sonnet-4-6` only when paying customers justify the cost. Do not change without explicit instruction.
 6. **Analysis output is always JSON.** The prompt must return valid JSON only.
    Never change the prompt to return markdown or plain text.
 7. **Stripe webhooks are the payment source of truth.** Never mark an analysis as
