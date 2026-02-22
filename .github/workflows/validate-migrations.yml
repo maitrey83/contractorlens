@@ -1,0 +1,95 @@
+name: Validate Migrations
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "supabase/migrations/**"
+
+jobs:
+  validate:
+    name: Migration Validation
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check migration filename format
+        run: |
+          echo "Checking migration file naming conventions..."
+          INVALID=0
+          for file in supabase/migrations/*.sql; do
+            # Skip if no files match
+            [ -f "$file" ] || continue
+            filename=$(basename "$file")
+            # Expected format: YYYYMMDD_HHMMSS_description.sql
+            if ! echo "$filename" | grep -qE '^[0-9]{8}_[0-9]{6}_[a-z0-9_]+\.sql$'; then
+              echo "❌ Invalid migration filename: $filename"
+              echo "   Expected format: YYYYMMDD_HHMMSS_description.sql"
+              INVALID=1
+            else
+              echo "✓ $filename"
+            fi
+          done
+          if [ $INVALID -eq 1 ]; then
+            exit 1
+          fi
+          echo "All migration filenames are valid."
+
+      - name: Check for rollback comment
+        run: |
+          echo "Checking that each migration includes a rollback comment..."
+          MISSING=0
+          for file in supabase/migrations/*.sql; do
+            [ -f "$file" ] || continue
+            if ! grep -qi "rollback" "$file"; then
+              echo "❌ Missing rollback comment: $(basename $file)"
+              MISSING=1
+            else
+              echo "✓ $(basename $file)"
+            fi
+          done
+          if [ $MISSING -eq 1 ]; then
+            echo ""
+            echo "All migration files must include a rollback comment."
+            echo "Example:"
+            echo "  -- Rollback: drop table if exists analyses;"
+            exit 1
+          fi
+
+      - name: Check no migration was modified (append-only)
+        run: |
+          echo "Checking that existing migrations were not modified..."
+          # Get list of modified .sql files that already existed in main
+          MODIFIED=$(git diff --name-only origin/main...HEAD -- 'supabase/migrations/*.sql' | \
+            while read f; do
+              # Only flag if the file existed in main (not new)
+              if git show origin/main:"$f" > /dev/null 2>&1; then
+                echo "$f"
+              fi
+            done)
+          if [ -n "$MODIFIED" ]; then
+            echo "❌ The following existing migration(s) were modified:"
+            echo "$MODIFIED"
+            echo ""
+            echo "Migrations are append-only. Never edit an existing migration."
+            echo "Create a new migration file instead."
+            exit 1
+          fi
+          echo "✓ No existing migrations were modified."
+
+      - name: Validate SQL syntax (basic check)
+        run: |
+          echo "Running basic SQL syntax validation..."
+          for file in supabase/migrations/*.sql; do
+            [ -f "$file" ] || continue
+            # Check for common dangerous patterns
+            if grep -qi "drop table\s" "$file" && ! grep -qi "if exists" "$file"; then
+              echo "⚠️  Warning: $(basename $file) uses DROP TABLE without IF EXISTS"
+            fi
+            if grep -qi "truncate\s" "$file"; then
+              echo "⚠️  Warning: $(basename $file) uses TRUNCATE — confirm this is intentional"
+            fi
+            echo "✓ $(basename $file) passed basic checks"
+          done

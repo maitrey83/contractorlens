@@ -1,0 +1,11 @@
+/* Global resets — component styles use inline style objects */
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: #0C0C0E;
+  color: #F0EDE8;
+}

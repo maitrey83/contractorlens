@@ -1,0 +1,83 @@
+name: Security Audit
+
+on:
+  pull_request:
+    branches: [main]
+  schedule:
+    # Run every Monday at 8am — catch newly disclosed vulnerabilities
+    - cron: "0 8 * * 1"
+
+jobs:
+  audit:
+    name: Dependency Security Audit
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        run: |
+          # Fail on high or critical vulnerabilities in production deps only.
+          # Dev-tool vulnerabilities (eslint, vitest, etc.) do not affect production.
+          npm audit --audit-level=high --omit=dev
+        continue-on-error: false
+
+      - name: Check for hardcoded secrets
+        run: |
+          echo "Scanning for accidentally committed secrets..."
+          FOUND=0
+
+          # Patterns that should never appear in source files
+          patterns=(
+            "sk_live_"           # Stripe live secret key
+            "sk_test_[A-Za-z0-9]{20,}"  # Stripe test key (real length)
+            "ANTHROPIC_API_KEY\s*=\s*sk-ant"  # Real Anthropic key
+            "service_role"        # Supabase service role literal
+            "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9\."  # JWT token pattern
+          )
+
+          # Files to scan (exclude node_modules, .git, test fixtures)
+          FILES=$(find . -type f \
+            \( -name "*.js" -o -name "*.jsx" -o -name "*.ts" -o -name "*.tsx" \
+               -o -name "*.json" -o -name "*.env*" \) \
+            ! -path "*/node_modules/*" \
+            ! -path "*/.git/*" \
+            ! -path "*/dist/*" \
+            ! -name ".env.example" \
+            ! -name "CLAUDE.md")
+
+          for pattern in "${patterns[@]}"; do
+            MATCHES=$(echo "$FILES" | xargs grep -rl "$pattern" 2>/dev/null || true)
+            if [ -n "$MATCHES" ]; then
+              echo "❌ Potential secret found matching pattern: $pattern"
+              echo "   Files: $MATCHES"
+              FOUND=1
+            fi
+          done
+
+          if [ $FOUND -eq 1 ]; then
+            echo ""
+            echo "Possible secrets detected. Review the flagged files before merging."
+            exit 1
+          fi
+
+          echo "✓ No hardcoded secrets detected."
+
+      - name: Check .env.local is not tracked
+        run: |
+          if git ls-files --error-unmatch .env.local 2>/dev/null; then
+            echo "❌ .env.local is tracked by git — remove it immediately"
+            echo "   Run: git rm --cached .env.local"
+            exit 1
+          fi
+          echo "✓ .env.local is not tracked."
