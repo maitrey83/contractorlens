@@ -31,7 +31,7 @@ jobs:
         run: npm test -- --run
         env:
           # Provide dummy values so API modules load without crashing
-          ANTHROPIC_API_KEY: test_key
+          GEMINI_API_KEY: test_key
           SUPABASE_URL: https://test.supabase.co
           SUPABASE_SERVICE_ROLE_KEY: test_key
           STRIPE_SECRET_KEY: sk_test_dummy
